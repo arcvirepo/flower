@@ -57,14 +57,11 @@ class PrometheusMetrics:
 from celery.events.state import Task, State
 class CustomTask(Task):
     def event(self, type_, *args, **kwargs):
-        print("Called overloaded event handler with {} {} {}".format(type_,args,kwargs))
         fields = kwargs.get('fields',{})
         if type_=='sent' and (self.__getattribute__(type_) is not None):
-            print('Skipping original handler')
             self.retries = fields.get('retries', self.retries) #only update the number of retries, do not touch other parameters
             return None
         else:
-            print('Running original handler')
             return super().event(type_, *args, **kwargs)
 class CustomState(State):
     Task=CustomTask
