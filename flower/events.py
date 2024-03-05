@@ -53,8 +53,24 @@ class PrometheusMetrics:
             ['worker']
         )
 
+# This patch ensures that sent is not overwritten on successive "sent" events, with this we keep the original sent time of the task after retries ###########
+from celery.events.state import Task, State
+class CustomTask(Task):
+    def event(self, type_, *args, **kwargs):
+        print("Called overloaded event handler with {} {} {}".format(type_,args,kwargs))
+        fields = kwargs.get('fields',{})
+        if type_=='sent' and (self.__getattribute__(type_) is not None):
+            print('Skipping original handler')
+            self.retries = fields.get('retries', self.retries) #only update the number of retries, do not touch other parameters
+            return None
+        else:
+            print('Running original handler')
+            return super().event(type_, *args, **kwargs)
+class CustomState(State):
+    Task=CustomTask
+######################################################################
 
-class EventsState(State):
+class EventsState(CustomState):
     # EventsState object is created and accessed only from ioloop thread
 
     def __init__(self, *args, **kwargs):
@@ -108,7 +124,6 @@ class EventsState(State):
 
         if event_type == 'worker-offline':
             self.metrics.worker_online.labels(worker_name).set(0)
-
 
 class Events(threading.Thread):
     events_enable_interval = 5000
